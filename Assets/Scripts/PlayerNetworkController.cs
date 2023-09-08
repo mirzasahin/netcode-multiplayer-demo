@@ -1,24 +1,45 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
 public class PlayerNetworkController : NetworkBehaviour
 {
     [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private GameObject spawnableObjectPrefab;
+    private GameObject spawnableObject;
 
-    private NetworkVariable<float> randomFloatNumber = new NetworkVariable<float>(5.5f,
-                                                            NetworkVariableReadPermission.Everyone,
-                                                            NetworkVariableWritePermission.Owner);
+    private NetworkVariable<CustomData> randomDataType = new NetworkVariable<CustomData>(
+        new CustomData
+        {
+            myInt = 14,
+            myBool = true,
+            myString = "Hello world!",
+        }, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
+    public struct CustomData : INetworkSerializable
+    {
+        public int myInt;
+        public bool myBool;
+        public FixedString128Bytes myString;
+
+        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        {
+            serializer.SerializeValue(ref myInt);
+            serializer.SerializeValue(ref myBool);
+            serializer.SerializeValue(ref myString);
+        }
+    }
 
     public override void OnNetworkSpawn()
     {
-        randomFloatNumber.OnValueChanged += RandomNumberOnValueChanged;
+        randomDataType.OnValueChanged += RandomNumberOnValueChanged;
     }
 
-    private void RandomNumberOnValueChanged(float previousValue, float newValue)
+    private void RandomNumberOnValueChanged(CustomData previousValue, CustomData newValue)
     {
-        Debug.Log(OwnerClientId + " : " + randomFloatNumber.Value);
+        Debug.Log(OwnerClientId + " : " + newValue.myInt + " : " + newValue.myBool + " : " + newValue.myString);
     }
 
     // Update is called once per frame
@@ -34,7 +55,19 @@ public class PlayerNetworkController : NetworkBehaviour
 
         if (Input.GetKeyUp(KeyCode.S))
         {
-            randomFloatNumber.Value = Random.Range(1, 100);
+            spawnableObject = Instantiate(spawnableObjectPrefab);
+            spawnableObject.GetComponent<NetworkObject>().Spawn();
+            //randomDataType.Value = new CustomData
+            //{
+            //    myInt = 10,
+            //    myBool = false,
+            //    myString = "How are you?"
+            //};
+        }
+
+        if(Input.GetKeyDown(KeyCode.G))
+        {
+            Destroy(spawnableObject);
         }
 
         Vector3 moveDir = Vector3.zero;
